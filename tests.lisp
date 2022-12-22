@@ -4,18 +4,14 @@
     `(,(find-symbol "IN-READTABLE" :named-readtables) :common-lisp))
 
 (defsuite py4cl ())
-;; Unable to test interrupt on CCL: see (deftest interrupt
-(defsuite process-interrupt (py4cl))
 (defsuite callpython-raw (py4cl))
 (defsuite callpython-utility (py4cl))
 (defsuite callpython-chain (py4cl))
 (defsuite callpython-remote (py4cl))
 (defsuite import-export (py4cl))
-(defsuite pickle (py4cl))
 (defsuite process-basic (py4cl))
 (defsuite objects (py4cl))
 (defsuite numpy-ufunc (py4cl))
-(defsuite py4cl-config (py4cl))
 (defsuite element-type (py4cl))
 (defsuite array-type (py4cl))
 
@@ -1006,35 +1002,6 @@ a = Test()")
     (assert-equalp 72 (slot-value object 'thing))
     (assert-equalp 72 (py4cl2-cffi:chain* object 'thing))))
 
-;; ============================== PICKLE =======================================
-
-(deftest transfer-multiple-arrays (pickle) (:fast-large-array-transfer)
-  (py4cl2-cffi:pystop)
-  (when (and (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-location)
-             (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound))
-    (let ((lower-bound (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound)))
-      (let ((dimensions `((,lower-bound)
-                          (,(* 5 lower-bound)))))
-        ;; test transfer to python and back
-        (assert-equalp dimensions
-                       (mapcar #'array-dimensions
-                               (py4cl2-cffi:pyeval
-                                (list (make-array (first dimensions)
-                                                  :element-type 'single-float
-                                                  :initial-element 0.0)
-                                      (make-array (second dimensions)
-                                                  :element-type 'single-float
-                                                  :initial-element 0.0)))))))))
-
-(deftest transfer-without-pickle (pickle) nil
-  (unless (and (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-location)
-               (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound))
-    (assert-equalp '(100000)
-        (array-dimensions
-         (py4cl2-cffi:pyeval (make-array 100000 :element-type 'single-float
-                                    :initial-element 0.0)))
-      "Pickle bound and location is present.")))
-
 ;; ========================= NUMPY-UFUNC =======================================
 
 (py4cl2-cffi:defpyfun "abs" "numpy" :lisp-fun-name "NUMABS")
@@ -1043,70 +1010,6 @@ a = Test()")
 (py4cl2-cffi:defpyfun "add" "numpy" :lisp-fun-name "NUMADD")
 (deftest numpy-ufunc-add (numpy-ufunc) nil
   (assert-equalp #(4 5 6) (numadd #(1 2 3) 3)))
-
-;; ==================== PROCESS-INTERRUPT ======================================
-
-;; Unable to test on CCL:
-;; Stream #<BASIC-CHARACTER-OUTPUT-STREAM UTF-8 (PIPE/36) #x3020019EE9AD> is private to #<PROCESS repl-thread(12) [Sleep] #x302000AC72FD>
-;; On windows: https://stackoverflow.com/questions/813086/can-i-send-a-ctrl-c-sigint-to-an-application-on-windows
-(deftest interrupt (process-interrupt) (:interrupt :with-python-output)
-  (let ((py4cl2-cffi::*py4cl-tests* t))
-    (py4cl2-cffi:pystop)
-    (py4cl2-cffi:pyexec "
-class Foo():
-  def foo(self):
-    import time
-    import sys
-    sys.stdout.write('hello')
-    sys.stdout.flush()
-    time.sleep(5)
-    return")
-    (assert-equalp "hello"
-        (let* ((rv nil)
-               (mon-thread (bt:make-thread
-                            (lambda ()
-                              (setq rv
-                                    (with-python-output
-                                      (py4cl2-cffi:pycall "Foo().foo")))))))
-          (sleep 1)
-          (py4cl2-cffi:pyinterrupt)
-          (bt:join-thread mon-thread)
-          rv))
-    (assert-true (py4cl2-cffi:python-alive-p))
-    (assert-equalp "hello"
-        (let* ((rv nil)
-               (mon-thread (bt:make-thread
-                            (lambda ()
-                              (setq rv
-                                    (with-python-output
-                                      (py4cl2-cffi:pymethod
-                                       (py4cl2-cffi:pycall "Foo") 'foo)))))))
-          (sleep 1)
-          (py4cl2-cffi:pyinterrupt)
-          (bt:join-thread mon-thread)
-          rv)))
-  (assert-true (py4cl2-cffi:python-alive-p))
-  ;; Check if no "residue" left
-
-  (assert-equalp 5 (py4cl2-cffi:pyeval 5)))
-
-;; ==================== PY4CL-CONFIG ======================================
-
-(deftest config-change (py4cl-config) nil
-  (let ((original-config (copy-tree *config*)))
-    (with-output-to-string (*standard-output*)
-      (setf (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-location) "tmp")
-      (setf (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound) 10000)
-      (setf (py4cl2-cffi:config-var (intern "NON-EXISTENT" :py4cl2)) "non-existent")
-      (assert-equal "tmp"
-          (py4cl2-cffi:pyeval "_py4cl_config['numpyPickleLocation']"))
-      (assert-equal 10000
-          (py4cl2-cffi:pyeval "_py4cl_config['numpyPickleLowerBound']"))
-      (assert-equal "non-existent"
-          (py4cl2-cffi:pyeval "_py4cl_config['nonExistent']"))
-      (unintern 'py4cl2-cffi::non-existent :py4cl2)
-      (setq py4cl2-cffi:*config* original-config)
-      (py4cl2-cffi:save-config))))
 
 ;; ==================== ARRAY-TYPE ======================================
 
