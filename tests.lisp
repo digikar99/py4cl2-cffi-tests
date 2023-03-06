@@ -9,7 +9,7 @@
 (defsuite callpython-chain (py4cl))
 (defsuite callpython-remote (py4cl))
 (defsuite import-export (py4cl))
-(defsuite process-basic (py4cl))
+(defsuite embed-basic (py4cl))
 (defsuite objects (py4cl))
 (defsuite numpy-ufunc (py4cl))
 (defsuite element-type (py4cl))
@@ -38,26 +38,14 @@
   (let ((*array-type* :cl))
     (run-suite 'py4cl :use-debugger interactive?)))
 
-;; ======================== PROCESS-BASIC =====================================
+;; ======================== EMBED-BASIC =====================================
 
-(deftest start-and-alive-p (process-basic) nil
-  (assert-false (py4cl2-cffi:python-alive-p))
+(deftest start-and-stop (embed-basic) nil
   (py4cl2-cffi:pystart)
-  (assert-true (py4cl2-cffi:python-alive-p)))
-
-(deftest stop (process-basic) nil
+  (py4cl2-cffi:raw-pyexec "def foo(): return None")
+  (assert-true (py4cl2-cffi:pyeval "foo"))
   (py4cl2-cffi:pystop)
-  (assert-false (py4cl2-cffi:python-alive-p))
-  (py4cl2-cffi:pystop))
-
-(deftest start-gone-wrong (process-basic) nil
-  (pystop)
-  (assert-condition py4cl2-cffi:python-process-startup-error
-      (py4cl2-cffi:pystart "python -c \"quit()\"")))
-
-(deftest error-on-eof (process-basic) nil
-  (dotimes (i 5)
-    (assert-condition py4cl2-cffi:python-eof-and-dead (py4cl2-cffi:pyexec "quit(0)"))))
+  (assert-condition py4cl2-cffi:pyerror (py4cl2-cffi:pyeval "foo")))
 
 ;; ======================== CALLPYTHON-RAW =====================================
 
@@ -120,13 +108,13 @@
       (py4cl2-cffi:raw-pyeval "-np.float32('inf')"))
 
   (assert-equal float-features:double-float-positive-infinity
-      (py4cl2-cffi:raw-pyeval (py4cl2-cffi:pythonize float-features:double-float-positive-infinity)))
+      (py4cl2-cffi:pyeval float-features:double-float-positive-infinity))
   (assert-equal float-features:double-float-negative-infinity
-      (py4cl2-cffi:raw-pyeval (py4cl2-cffi:pythonize float-features:double-float-negative-infinity)))
+      (py4cl2-cffi:pyeval float-features:double-float-negative-infinity))
   (assert-equal float-features:single-float-positive-infinity
-      (py4cl2-cffi:raw-pyeval (py4cl2-cffi:pythonize float-features:single-float-positive-infinity)))
+      (py4cl2-cffi:pyeval float-features:single-float-positive-infinity))
   (assert-equal float-features:single-float-negative-infinity
-      (py4cl2-cffi:raw-pyeval (py4cl2-cffi:pythonize float-features:single-float-negative-infinity))))
+      (py4cl2-cffi:pyeval float-features:single-float-negative-infinity)))
 
 (deftest eval-vector (callpython-raw) nil
   (let ((result (py4cl2-cffi:raw-pyeval "[i**2 for i in range(4)]")))
@@ -149,10 +137,10 @@
   (assert-true (let ((value (raw-pyeval "np.float64('nan')")))
                  (and (typep value 'double-float)
                       (float-features:float-nan-p value))))
-  (assert-true (let ((value (raw-pyeval (py4cl2-cffi:pythonize float-features:single-float-nan))))
+  (assert-true (let ((value (pyeval float-features:single-float-nan)))
                  (and (typep value 'single-float)
                       (float-features:float-nan-p value))))
-  (assert-true (let ((value (raw-pyeval (py4cl2-cffi:pythonize float-features:double-float-nan))))
+  (assert-true (let ((value (pyeval float-features:double-float-nan)))
                  (and (typep value 'double-float)
                       (float-features:float-nan-p value)))))
 
@@ -165,7 +153,7 @@
   (let ((str "hello
 world"))
     #-(or :os-windows :windows)
-    (assert-equalp str (py4cl2-cffi:raw-pyeval (py4cl2-cffi::pythonize str)))
+    (assert-equalp str (py4cl2-cffi:raw-pyeval (py4cl2-cffi::py-repr str)))
     #+(or :os-windows :windows)
     (assert-equalp "hello
 world"
@@ -182,8 +170,9 @@ world"
 (deftest eval-print (callpython-raw) nil
   (unless (= 2 (first *pyversion*))
     ;; Should return the result of print, not the string printed
-    (assert-equalp "None"
-        (py4cl2-cffi:raw-pyeval "print(\"hello\")")
+    (assert-true (py4cl2-cffi::python-object-eq
+                  (pyvalue "None")
+                  (py4cl2-cffi:raw-pyeval "print(\"hello\")"))
       "This fails with python 2")))
 
 (deftest unicode-string-type (callpython-raw) nil
@@ -207,7 +196,7 @@ world"
     (py4cl2-cffi:pyeval #C(1 2) "*" 1/2)))
 
 (deftest eval-nil (callpython-raw) nil
-  (assert-equalp "()" (raw-pyeval "()")))
+  (assert-equalp +py-empty-tuple+ (raw-pyeval "()")))
 
 (deftest python-exec-scope (callpython-raw) nil
   ;; Local functions are retained in scope
@@ -436,15 +425,15 @@ def foo(gen):
         (py4cl2-cffi:pycall 'foo gen)))
   (assert-equalp #(#\h #\e #\l #\l #\o)
       (let ((gen (py4cl2-cffi:pygenerator (let ((str (make-string-input-stream "hello")))
-                                       (lambda () (read-char str nil)))
-                                     nil)))
+                                            (lambda () (read-char str nil)))
+                                          nil)))
         (py4cl2-cffi:pycall 'foo gen))))
 
 (deftest pyslot-value-symbol-as-slot (callpython-utility) nil
   (assert-equalp 5
       (progn
         (py4cl2-cffi:pyexec "a=5")
-        (py4cl2-cffi:pyslot-value "a" 'real)))
+        (py4cl2-cffi:pyslot-value (py4cl2-cffi:pyvalue "a") 'real)))
   (py4cl2-cffi:pyexec "
 class Foo:
   def __init__(self):
@@ -458,7 +447,7 @@ tmp = Foo()")
   (assert-equalp '(5 10 15)
       (let ((s 'b) (temp (py4cl2-cffi:pycall "Foo")))
         (setf (py4cl2-cffi:pyslot-value temp 'c) 15)
-        (list (py4cl2-cffi:pyslot-value "tmp" 'a)
+        (list (py4cl2-cffi:pyslot-value (py4cl2-cffi:pyvalue "tmp") 'a)
               (py4cl2-cffi:pyslot-value temp s)
               (py4cl2-cffi:pyslot-value temp 'c)))))
 
@@ -466,7 +455,7 @@ tmp = Foo()")
   (assert-equalp 5
       (progn
         (py4cl2-cffi:pyexec "a=5")
-        (py4cl2-cffi:pyslot-value "a" "real")))
+        (py4cl2-cffi:pyslot-value (py4cl2-cffi:pyvalue "a") "real")))
   (py4cl2-cffi:pyexec "
 class Foo:
   def __init__(self):
@@ -474,14 +463,14 @@ class Foo:
     self.b = 10
 temp = Foo()")
   (assert-equalp 5
-      (py4cl2-cffi:pyslot-value "temp" "a")))
+      (py4cl2-cffi:pyslot-value (py4cl2-cffi:pyvalue "temp") "a")))
 
 (deftest pythonizers-and-lispifiers (callpython-utility) nil
   (pyexec "import decimal")
   (assert-equalp #.(coerce pi 'double-float)
       (with-lispifiers ((python-object (lambda (o)
                                          (if (string= "<class 'decimal.Decimal'>"
-                                                      (print (python-object-type o)))
+                                                      (python-object-type o))
                                              (pycall "float" o)
                                              o))))
         (with-pythonizers ((real "decimal.Decimal"))
@@ -518,7 +507,7 @@ temp = Foo()")
                          1 0)))
   (assert-equalp #(4 5)
       (py4cl2-cffi:chain (aref #2A((1 2 3) (4 5 6))
-                          1 (slice 0 2))))
+                               1 (slice 0 2))))
 
   (let ((dict (py4cl2-cffi:pyeval "{\"hello\":\"world\", \"ping\":\"pong\"}")))
     (assert-equalp "world"
@@ -587,15 +576,17 @@ class testclass:
 ;; ========================= CALLPYTHON-REMOTE =================================
 
 (deftest with-remote-objects (callpython-remote) nil
-  (assert-equalp 'py4cl2-cffi::python-object
-      (type-of (py4cl2-cffi:with-remote-objects (py4cl2-cffi:pyeval "1+2"))))
+  (assert-equality #'typep
+      (py4cl2-cffi:with-remote-objects (py4cl2-cffi:pyeval "1+2"))
+      'cffi:foreign-pointer)
   (assert-equalp 3
       (py4cl2-cffi:with-remote-objects* (py4cl2-cffi:pyeval "1+2")))
-  (assert-equalp 'py4cl2-cffi::python-object
-      (type-of (py4cl2-cffi:with-remote-objects
-                 (py4cl2-cffi:with-remote-objects
-                   (py4cl2-cffi:pyeval "1+2"))
-                 (py4cl2-cffi:pyeval "1+2")))))
+  (assert-equality #'typep
+      (py4cl2-cffi:with-remote-objects
+        (py4cl2-cffi:with-remote-objects
+          (py4cl2-cffi:pyeval "1+2"))
+        (py4cl2-cffi:pyeval "1+2"))
+      'cffi:foreign-pointer))
 
 (deftest callback-in-remote-objects (callpython-remote) nil
   ;; Callbacks send values to lisp in remote-objects environments
@@ -718,7 +709,14 @@ class testclass:
      (defpyfun "allNullsReturnAll"))
   (pycall "allNulls")
   (assert-true (all-nulls))
-  (assert-true (equalp '(#() "()" nil "None") (all-nulls-return-all)))
+  (assert-true (every (lambda (x y)
+                        (or (equalp x y)
+                            (py4cl2-cffi::python-object-eq x y)))
+                      (list #()
+                            py4cl2-cffi:+py-empty-tuple+
+                            nil
+                            py4cl2-cffi:+py-none+)
+                      (all-nulls-return-all)))
   (assert-true (equalp '(5 6 7 8) (all-nulls-return-all :a 5 :b 6 :c 7 :d 8)))
   (assert-true (equalp '("hello" "world" "good" "bye")
                        (all-nulls-return-all :a "hello" :b "world"
@@ -849,7 +847,10 @@ class testclass:
   (py4cl2-cffi:pystop)
   (py4cl2-cffi:pyexec
    "class Test:
-  pass
+  def __init__(self, value=None):
+    self.value = value
+  def __repr__(self):
+    return \"Test(value={0})\".format(self.value)
 
 a = Test()
 a.value = 42")
@@ -858,19 +859,10 @@ a.value = 42")
   (assert-true (= 42
                   (py4cl2-cffi:pyeval "a.value")))
 
-  ;; Implementation detail: No objects stored in python dict
-  (assert-true (= 0
-                  (py4cl2-cffi:pyeval "len(_py4cl_objects)")))
-
   ;; Evaluate and return a python object
   (let ((var (py4cl2-cffi:pyeval "a")))
-    ;; Implementation detail: Type of returned object
-    (assert-equalp 'PY4CL2-CFFI::PYTHON-OBJECT
+    (assert-equalp 'py4cl2-cffi:python-object
         (type-of var))
-
-    ;; Implementation detail: Object is stored in a dictionary
-    (assert-equalp 1
-        (py4cl2-cffi:pyeval "len(_py4cl_objects)"))
 
     ;; Can pass to eval to use dot accessor
     (assert-equalp 42
@@ -878,39 +870,7 @@ a.value = 42")
 
     ;; Can pass as argument to function
     (assert-equal 84
-        (py4cl2-cffi:pycall "lambda x : x.value * 2" var)))
-
-  ;; Trigger a garbage collection so that VAR is finalized.
-  ;; This should also delete the object in python
-  (tg:gc :full t)
-
-  ;; Implementation detail: dict object store should be empty
-  ;; Note: This is dependent on the CL implementation. Trivial-garbage
-  ;; doesn't seem to support ccl or ecl. TODO: What are the implications?
-  (skip-on (:ccl :ecl)
-           (assert-equalp 0
-               (py4cl2-cffi:pyeval "len(_py4cl_objects)"))))
-
-(deftest python-del-objects (objects) nil
-    ;; Check that finalizing objects doesn't start python
-  (py4cl2-cffi:pystart)
-  (py4cl2-cffi:pyexec
-"class Test:
-  pass
-
-a = Test()")
-  (let ((var (py4cl2-cffi:pyeval "a")))
-    ;; Implementation detail: Type of returned object
-    (assert-equalp 'PY4CL2-CFFI::PYTHON-OBJECT
-        (type-of var))
-
-    (py4cl2-cffi:pystop)
-    (assert-false (py4cl2-cffi:python-alive-p)))
-
-  ;; VAR out of scope. Make sure it's finalized
-  (tg:gc :full t)
-
-  (assert-false (py4cl2-cffi:python-alive-p)))
+        (py4cl2-cffi:pycall "lambda x : x.value * 2" var))))
 
 ;;; Passing unknown lisp objects to python
 
@@ -1031,77 +991,3 @@ a = Test()")
 (deftest simple-vector (element-type) nil
   (assert-equalp #("hello" "world")
       (pyeval #("hello" "world"))))
-
-(deftest array-element-type-no-pickle (element-type) (:typed-arrays)
-  (let ((lower-bound (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound)))
-    (flet ((pyeval-array (dimensions element-type initial-element)
-             (let* ((array (pyeval (make-array dimensions :element-type element-type
-                                                          :initial-element initial-element)))
-                    (first-pass (pyeval array))
-                    (second-pass (pyeval array)))
-               (array-element-type second-pass))))
-
-      ;; Filled arrays
-      (assert-true
-          (every (lambda (args) (apply #'alexandria:type= args))
-                 (list (list 'double-float (pyeval-array 10 'double-float 0.0d0))
-                       (list 'single-float (pyeval-array 10 'single-float 0.0))
-                       (list '(signed-byte 64) (pyeval-array 10 '(signed-byte 64) 0))
-                       (list '(signed-byte 32) (pyeval-array 10 '(signed-byte 32) 0))
-                       (list '(signed-byte 16) (pyeval-array 10 '(signed-byte 16) 0))
-                       (list '(signed-byte 08) (pyeval-array 10 '(signed-byte 08) 0))
-                       (list '(unsigned-byte 64) (pyeval-array 10 '(unsigned-byte 64) 0))
-                       (list '(unsigned-byte 32) (pyeval-array 10 '(unsigned-byte 32) 0))
-                       (list '(unsigned-byte 16) (pyeval-array 10 '(unsigned-byte 16) 0))
-                       (list '(unsigned-byte 08) (pyeval-array 10 '(unsigned-byte 08) 0))
-
-                       (list 'bit (pyeval-array 10 'bit 1))
-                       (list t (pyeval-array 10 t (make-test-struct))))))
-
-      ;; Empty arrays
-      (assert-true
-          (every (lambda (args) (apply #'alexandria:type= args))
-                 (list (list 'double-float (pyeval-array 0 'double-float 0.0d0))
-                       (list 'single-float (pyeval-array 0 'single-float 0.0))
-                       (list '(signed-byte 64) (pyeval-array 0 '(signed-byte 64) 0))
-                       (list '(signed-byte 32) (pyeval-array 0 '(signed-byte 32) 0))
-                       (list '(signed-byte 16) (pyeval-array 0 '(signed-byte 16) 0))
-                       (list '(signed-byte 08) (pyeval-array 0 '(signed-byte 08) 0))
-                       (list '(unsigned-byte 64) (pyeval-array 0 '(unsigned-byte 64) 0))
-                       (list '(unsigned-byte 32) (pyeval-array 0 '(unsigned-byte 32) 0))
-                       (list '(unsigned-byte 16) (pyeval-array 0 '(unsigned-byte 16) 0))
-                       (list '(unsigned-byte 08) (pyeval-array 0 '(unsigned-byte 08) 0))
-
-                       (list 'bit (pyeval-array 0 'bit 1))
-                       (list t (pyeval-array 0 t (make-test-struct)))))))))
-
-(deftest array-element-type-no-pickle (element-type) (:typed-arrays :fast-large-array-transfer)
-  (let ((lower-bound (py4cl2-cffi:config-var 'py4cl2-cffi:numpy-pickle-lower-bound)))
-    (flet ((pyeval-array (dimensions element-type initial-element)
-             (let* ((array (pyeval (make-array dimensions :element-type element-type
-                                                          :initial-element initial-element)))
-                    (first-pass (pyeval array))
-                    (second-pass (pyeval array)))
-               (array-element-type second-pass))))
-      (assert-true
-          (every (lambda (args) (apply #'alexandria:type= args))
-                 (list (list 'double-float (pyeval-array (list 2 lower-bound)
-                                                         'double-float 0.0d0))
-                       (list 'single-float (pyeval-array (list 2 lower-bound)
-                                                         'single-float 0.0))
-                       (list '(signed-byte 64) (pyeval-array (list 2 lower-bound)
-                                                             '(signed-byte 64) 0))
-                       (list '(signed-byte 32) (pyeval-array (list 2 lower-bound)
-                                                             '(signed-byte 32) 0))
-                       (list '(signed-byte 16) (pyeval-array (list 2 lower-bound)
-                                                             '(signed-byte 16) 0))
-                       (list '(signed-byte 08) (pyeval-array (list 2 lower-bound)
-                                                             '(signed-byte 08) 0))
-                       (list '(unsigned-byte 64) (pyeval-array (list 2 lower-bound)
-                                                               '(unsigned-byte 64) 0))
-                       (list '(unsigned-byte 32) (pyeval-array (list 2 lower-bound)
-                                                               '(unsigned-byte 32) 0))
-                       (list '(unsigned-byte 16) (pyeval-array (list 2 lower-bound)
-                                                               '(unsigned-byte 16) 0))
-                       (list '(unsigned-byte 08) (pyeval-array (list 2 lower-bound)
-                                                               '(unsigned-byte 08) 0))))))))
