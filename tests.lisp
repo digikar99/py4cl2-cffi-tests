@@ -22,10 +22,11 @@
 
 (defmacro deftest (name declarations required-py4cl2-features &body body)
   `(clunit:deftest ,name ,declarations
-     (if (subsetp ',required-py4cl2-features py4cl2-cffi:*internal-features*)
-         (progn
-           ,@body)
-         (clunit::skip-test-case))))
+     (py4cl2-cffi:with-pygc
+       (if (subsetp ',required-py4cl2-features py4cl2-cffi:*internal-features*)
+           (progn
+             ,@body)
+           (clunit::skip-test-case)))))
 
 (defmacro skip-on (skip-features assert-form)
   `(if (intersection ',skip-features *features*)
