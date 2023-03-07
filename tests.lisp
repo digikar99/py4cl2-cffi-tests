@@ -164,7 +164,7 @@ world"
 
 (deftest eval-format-string (callpython-raw) nil
   (assert-equalp "foo"
-      (py4cl2-cffi:raw-pyeval (py4cl2-cffi::pythonize "foo"))))
+      (py4cl2-cffi:pyeval (py4cl2-cffi:pythonize "foo"))))
 
 ;; This tests whether outputs to stdout mess up the return stream
 (deftest eval-print (callpython-raw) nil
