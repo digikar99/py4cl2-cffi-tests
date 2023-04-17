@@ -6,7 +6,7 @@
   :version "0.1.0" ; beta
   :depends-on ("py4cl2-cffi"
                #-(or :ecl :abcl)
-               "numcl"
+               "dense-arrays-plus-lite"
                "alexandria"
                "clunit"
                "float-features"
