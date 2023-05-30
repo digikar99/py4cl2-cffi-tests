@@ -37,7 +37,8 @@
   "Run all the tests for py4cl2."
   (declare (ignore result-for))
   (let ((*array-type* :cl))
-    (run-suite 'py4cl :use-debugger interactive?)))
+    (terpri)
+    (princ (run-suite 'py4cl :use-debugger interactive?))))
 
 ;; ======================== EMBED-BASIC =====================================
 
