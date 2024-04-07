@@ -13,6 +13,7 @@
 (defsuite objects (py4cl))
 (defsuite numpy-ufunc (py4cl))
 (defsuite element-type (py4cl))
+(defsuite array-data (py4cl))
 (defsuite array-type (py4cl))
 
 (py4cl2-cffi:pystart)
@@ -973,7 +974,46 @@ a.value = 42")
 (deftest numpy-ufunc-add (numpy-ufunc) nil
   (assert-equalp #(4 5 6) (numadd #(1 2 3) 3)))
 
-;; ==================== ARRAY-TYPE ======================================
+;; =========================== ARRAY-DATA ======================================
+
+(deftest row-major-array-data (array-data) (:typed-arrays)
+  (import-module "numpy")
+  (let ((rand (aops:rand* 'single-float '(2 3 4))))
+    (assert-equalp rand (pycall "numpy.asarray" rand :order "C")))
+  (let ((rand (aops:rand '(2 3 4))))
+    (assert-equalp rand (pycall "numpy.asarray" rand :order "C" :dtype "object"))))
+
+(deftest column-major-array-data (array-data) (:typed-arrays)
+  (import-module "numpy")
+  (let ((rand (aops:rand* 'single-float '(2 3 4))))
+    (assert-equalp rand (pycall "numpy.asarray" rand :order "F")))
+  (let ((rand (aops:rand '(2 3 4))))
+    (assert-equalp rand (pycall "numpy.asarray" rand :order "F" :dtype "object"))))
+
+(deftest non-contigous-array-data (array-data) (:typed-arrays)
+  (import-module "numpy")
+  (let* ((rand (aops:rand* 'single-float '(2 3 4)))
+         (pyrand (pyeval rand "[:, :, ::-2]")))
+    (assert-equalp (aref rand 0 0 3)
+                   (aref pyrand 0 0 0))
+    (assert-equalp (aref rand 0 0 1)
+                   (aref pyrand 0 0 1))
+    (assert-equalp (aref rand 0 1 3)
+                   (aref pyrand 0 1 0))
+    (assert-equalp (aref rand 0 1 1)
+                   (aref pyrand 0 1 1)))
+  (let* ((rand (aops:rand '(2 3 4)))
+         (pyrand (pyeval rand "[:, :, ::-2]")))
+    (assert-equalp (aref rand 0 0 3)
+                   (aref pyrand 0 0 0))
+    (assert-equalp (aref rand 0 0 1)
+                   (aref pyrand 0 0 1))
+    (assert-equalp (aref rand 0 1 3)
+                   (aref pyrand 0 1 0))
+    (assert-equalp (aref rand 0 1 1)
+                   (aref pyrand 0 1 1))))
+
+;; =========================== ARRAY-TYPE ======================================
 
 ;; TODO: Test whether dense-array loads on ECL and ABCL
 #-(or :ecl :abcl)
