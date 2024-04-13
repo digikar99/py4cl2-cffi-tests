@@ -37,9 +37,8 @@
 (defun run (&optional interactive? result-for)
   "Run all the tests for py4cl2."
   (declare (ignore result-for))
-  (let ((*array-type* :cl))
-    (terpri)
-    (princ (run-suite 'py4cl :use-debugger interactive?))))
+  (terpri)
+  (princ (run-suite 'py4cl :use-debugger interactive?)))
 
 ;; ======================== EMBED-BASIC =====================================
 
@@ -173,7 +172,7 @@ world"
 (deftest eval-print (callpython-raw) nil
   (unless (= 2 (first *pyversion*))
     ;; Should return the result of print, not the string printed
-    (assert-true (py4cl2-cffi::python-object-eq
+    (assert-true (py4cl2-cffi::pyobject-wrapper-eq
                   (pyvalue "None")
                   (py4cl2-cffi:raw-pyeval "print(\"hello\")"))
       "This fails with python 2")))
@@ -416,21 +415,32 @@ bar()")
   (assert-equalp "hello world"
       (py4cl2-cffi:pymethod "hello {0}" "format" "world")))
 
+(deftest pymethod-exception-handling (callpython-utility) nil
+  (py4cl2-cffi:pyexec "
+class Foo:
+  def __init__(self):
+    return None
+  def bar(self):
+    raise Exception('This should be raised!')
+")
+  (assert-condition pyerror
+      (py4cl2-cffi:with-pygc (pymethod (pycall "Foo") "bar"))))
+
 (deftest pygenerator (callpython-utility) nil
-  (assert-equalp "<class 'generator'>"
-      (slot-value (py4cl2-cffi:pygenerator #'identity 3) 'type))
   (py4cl2-cffi:pyexec "
 def foo(gen):
   return list(gen)")
   (assert-equalp #(1 2 3 4)
-      (let ((gen (py4cl2-cffi:pygenerator (let ((x 0)) (lambda () (incf x)))
-                                     5)))
-        (py4cl2-cffi:pycall 'foo gen)))
+      (py4cl2-cffi:with-pygc
+        (let ((gen (py4cl2-cffi:pygenerator (let ((x 0)) (lambda () (incf x)))
+                                            5)))
+          (py4cl2-cffi:pycall 'foo gen))))
   (assert-equalp #(#\h #\e #\l #\l #\o)
-      (let ((gen (py4cl2-cffi:pygenerator (let ((str (make-string-input-stream "hello")))
-                                            (lambda () (read-char str nil)))
-                                          nil)))
-        (py4cl2-cffi:pycall 'foo gen))))
+      (py4cl2-cffi:with-pygc
+        (let ((gen (py4cl2-cffi:pygenerator (let ((str (make-string-input-stream "hello")))
+                                              (lambda () (read-char str nil)))
+                                            nil)))
+          (py4cl2-cffi:pycall 'foo gen)))))
 
 (deftest pyslot-value-symbol-as-slot (callpython-utility) nil
   (assert-equalp 5
@@ -471,11 +481,13 @@ temp = Foo()")
 (deftest pythonizers-and-lispifiers (callpython-utility) nil
   (pyexec "import decimal")
   (assert-equalp #.(coerce pi 'double-float)
-      (with-lispifiers ((python-object (lambda (o)
-                                         (if (string= "<class 'decimal.Decimal'>"
-                                                      (python-object-type o))
-                                             (pycall "float" o)
-                                             o))))
+      (with-lispifiers ((pyobject-wrapper
+                         (lambda (o)
+                           (if (pycall "isinstance"
+                                       o (py4cl2-cffi::pyvalue*
+                                          "decimal.Decimal"))
+                               (pycall "float" o)
+                               o))))
         (with-pythonizers ((real "decimal.Decimal"))
           (pyeval pi)))))
 
@@ -581,7 +593,7 @@ class testclass:
 (deftest with-remote-objects (callpython-remote) nil
   (assert-equality #'typep
       (py4cl2-cffi:with-remote-objects (py4cl2-cffi:pyeval "1+2"))
-      'cffi:foreign-pointer)
+      'py4cl2-cffi::pyobject-wrapper)
   (assert-equalp 3
       (py4cl2-cffi:with-remote-objects* (py4cl2-cffi:pyeval "1+2")))
   (assert-equality #'typep
@@ -589,7 +601,7 @@ class testclass:
         (py4cl2-cffi:with-remote-objects
           (py4cl2-cffi:pyeval "1+2"))
         (py4cl2-cffi:pyeval "1+2"))
-      'cffi:foreign-pointer))
+      'py4cl2-cffi::pyobject-wrapper))
 
 (deftest callback-in-remote-objects (callpython-remote) nil
   ;; Callbacks send values to lisp in remote-objects environments
@@ -714,7 +726,7 @@ class testclass:
   (assert-true (all-nulls))
   (assert-true (every (lambda (x y)
                         (or (equalp x y)
-                            (py4cl2-cffi::python-object-eq x y)))
+                            (py4cl2-cffi::pyobject-wrapper-eq x y)))
                       (list #()
                             py4cl2-cffi:+py-empty-tuple+
                             nil
@@ -845,7 +857,7 @@ class testclass:
 ;; ============================= OBJECTS =======================================
 
 
-(deftest python-objects (objects) nil
+(deftest pyobject-wrappers (objects) nil
   ;; Define a simple python class containing a value
   (py4cl2-cffi:pystop)
   (py4cl2-cffi:pyexec
@@ -864,7 +876,7 @@ a.value = 42")
 
   ;; Evaluate and return a python object
   (let ((var (py4cl2-cffi:pyeval "a")))
-    (assert-equalp 'py4cl2-cffi:python-object
+    (assert-equalp 'py4cl2-cffi:pyobject-wrapper
         (type-of var))
 
     ;; Can pass to eval to use dot accessor

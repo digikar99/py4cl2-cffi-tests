@@ -4,7 +4,7 @@
 (py4cl2-cffi:defpymodule "numpy" nil :lisp-package "NP" :silent t
                           :continue-ignoring-errors nil)
 (py4cl2-cffi:defpymodule "numpy.random" t :silent t
-                          :continue-ignoring-errors nil)
+                         :continue-ignoring-errors nil)
 
 ;;; Do not test on ECL on CI just to save some travis time
 ;;; Do not test on ABCL because it causes some error even though the command

@@ -3,7 +3,7 @@
   :description "Unit tests for the py4cl2-cffi library."
   :author "Shubhamkar Ayare <shubhamayare@yahoo.co.in>"
   :license "MIT"
-  :version "0.2.0" ; beta
+  :version "0.3.0" ; beta
   :depends-on ("py4cl2-cffi"
                "array-operations"
                #-(or :ecl :abcl)
