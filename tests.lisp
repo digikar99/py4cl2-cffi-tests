@@ -480,7 +480,7 @@ temp = Foo()")
 
 (deftest pythonizers-and-lispifiers (callpython-utility) nil
   (pyexec "import decimal")
-  (assert-equalp #.(coerce pi 'double-float)
+  (assert-equalp #.(coerce pi 'long-float)
       (with-lispifiers ((pyobject-wrapper
                          (lambda (o)
                            (if (pycall "isinstance"
