@@ -332,10 +332,10 @@ bar()")
   (let ((py4cl2-cffi::*py4cl-tests* t))
     (py4cl2-cffi:pystop)
     (py4cl2-cffi:pyexec "import sys")
-    (skip-on (:travis :ccl :ecl)
+    (skip-on (:ci :ccl :ecl)
              (assert-equalp "hello world"
                  (with-python-output (py4cl2-cffi:pycall "sys.stdout.write" "hello world"))))
-    (skip-on (:travis :ccl :ecl)
+    (skip-on (:ci :ccl :ecl)
              (assert-equalp "testing"
                  (with-python-output (py4cl2-cffi:pycall "sys.stdout.write" "testing"))))))
 
