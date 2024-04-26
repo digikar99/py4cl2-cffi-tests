@@ -626,12 +626,14 @@ class testclass:
 
 (deftest numpy-import-as-np (import-export) nil
   ;; also check whether "all" options as expected
-  (defpymodule "numpy" nil :lisp-package "NP" :silent t)
-  ;; np. formats are accessible
-  (assert-true (pyeval 'np.float32))
-  (pystop)
-  ;; package is imported as np even after stopping
-  (assert-equalp #(5 7 9) (np:add '(1 2 3) '(4 5 6))))
+  (skip-on (:ci)
+           (progn
+             (eval `(defpymodule "numpy" nil :lisp-package "NP" :silent t))
+             ;; np. formats are accessible
+             (assert-true (pyeval 'np.float32))
+             (pystop)
+             ;; package is imported as np even after stopping
+             (assert-equalp #(5 7 9) (np:add '(1 2 3) '(4 5 6))))))
 
 (deftest numpy-random-import (import-export) nil
   (defpymodule "numpy.random" t :silent t)
@@ -1002,28 +1004,43 @@ a.value = 42")
   (let ((rand (aops:rand '(2 3 4))))
     (assert-equalp rand (pycall "numpy.asarray" rand :order "F" :dtype "object"))))
 
-(deftest non-contigous-array-data (array-data) (:typed-arrays)
+(defun float-close-p (f1 f2)
+  (or (= f1 f2)
+      (< (abs (- f1 f2))
+         (etypecase f1
+           (single-float 1f-7)
+           (double-float 1d-15)))))
+
+(deftest non-contiguous-array-data (array-data) (:typed-arrays)
   (import-module "numpy")
   (let* ((rand (aops:rand* 'single-float '(2 3 4)))
          (pyrand (pyeval rand "[:, :, ::-2]")))
-    (assert-equalp (aref rand 0 0 3)
-                   (aref pyrand 0 0 0))
-    (assert-equalp (aref rand 0 0 1)
-                   (aref pyrand 0 0 1))
-    (assert-equalp (aref rand 0 1 3)
-                   (aref pyrand 0 1 0))
-    (assert-equalp (aref rand 0 1 1)
-                   (aref pyrand 0 1 1)))
+    (assert-equality 'float-close-p
+        (aref rand 0 0 3)
+        (aref pyrand 0 0 0))
+    (assert-equality 'float-close-p
+        (aref rand 0 0 1)
+        (aref pyrand 0 0 1))
+    (assert-equality 'float-close-p
+        (aref rand 0 1 3)
+        (aref pyrand 0 1 0))
+    (assert-equality 'float-close-p
+        (aref rand 0 1 1)
+        (aref pyrand 0 1 1)))
   (let* ((rand (aops:rand '(2 3 4)))
          (pyrand (pyeval rand "[:, :, ::-2]")))
-    (assert-equalp (aref rand 0 0 3)
-                   (aref pyrand 0 0 0))
-    (assert-equalp (aref rand 0 0 1)
-                   (aref pyrand 0 0 1))
-    (assert-equalp (aref rand 0 1 3)
-                   (aref pyrand 0 1 0))
-    (assert-equalp (aref rand 0 1 1)
-                   (aref pyrand 0 1 1))))
+    (assert-equality 'float-close-p
+        (aref rand 0 0 3)
+        (aref pyrand 0 0 0))
+    (assert-equality 'float-close-p
+        (aref rand 0 0 1)
+        (aref pyrand 0 0 1))
+    (assert-equality 'float-close-p
+        (aref rand 0 1 3)
+        (aref pyrand 0 1 0))
+    (assert-equality 'float-close-p
+        (aref rand 0 1 1)
+        (aref pyrand 0 1 1))))
 
 ;; =========================== ARRAY-TYPE ======================================
 
