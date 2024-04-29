@@ -14,7 +14,6 @@
 (defsuite numpy-ufunc (py4cl))
 (defsuite element-type (py4cl))
 (defsuite array-data (py4cl))
-(defsuite array-type (py4cl))
 
 (py4cl2-cffi:pystart)
 (defvar *pyversion* (py4cl2-cffi:pyversion-info))
@@ -1041,18 +1040,6 @@ a.value = 42")
     (assert-equality 'float-close-p
         (aref rand 0 1 1)
         (aref pyrand 0 1 1))))
-
-;; =========================== ARRAY-TYPE ======================================
-
-;; TODO: Test whether dense-array loads on ECL and ABCL
-#-(or :ecl :abcl)
-(deftest dense-array (array-type) nil
-  ;; Doesn't really matter if they are numcl-arrays or not
-  (let ((dense-arrays:*dense-array-class* 'dense-arrays:standard-dense-array))
-    (with-lispifiers (((and cl:array (not string)) #'dense-arrays-plus-lite:asarray))
-      (destructuring-bind (a b) (pyeval "(" #(1 2 3) ", " #2A((1 2 3) (4 5 6)) ")")
-        (assert-true (typep a 'dense-arrays:standard-dense-array))
-        (assert-true (typep b 'dense-arrays:standard-dense-array))))))
 
 ;; ==================== ELEMENT-TYPE ==============================
 (deftest float-type (element-type) nil

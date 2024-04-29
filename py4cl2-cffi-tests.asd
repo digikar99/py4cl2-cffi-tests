@@ -4,15 +4,8 @@
   :author "Shubhamkar Ayare <shubhamayare@yahoo.co.in>"
   :license "MIT"
   :version "0.3.0" ; beta
-  :depends-on ("py4cl2-cffi"
-               "array-operations"
+  :depends-on ("py4cl2-cffi-tests-lite"
                #-(or :ecl :abcl)
-               "dense-arrays-plus-lite"
-               "alexandria"
-               "clunit"
-               "float-features"
-               "trivial-garbage"
-               "trivial-arguments")
-  :components ((:file "package")
-               (:file "tests"))
+               "dense-arrays-plus-lite")
+  :components ((:file "dense-arrays"))
   :perform (test-op (o c) (symbol-call :py4cl2-cffi-tests :run)))
