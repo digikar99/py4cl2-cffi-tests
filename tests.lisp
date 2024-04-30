@@ -535,9 +535,9 @@ temp = Foo()")
        return arg * key")
 
   (assert-equalp 3
-      (py4cl2-cffi:chain (test-fn 3)))
+      (py4cl2-cffi:chain (test_fn 3)))
   (assert-equalp 6
-      (py4cl2-cffi:chain (test-fn 3 :key 2)))
+      (py4cl2-cffi:chain (test_fn 3 :key 2)))
 
   (py4cl2-cffi:pyexec
    "class testclass:
@@ -778,7 +778,7 @@ class testclass:
     ((py4cl2-cffi:defpyfun "foo")
      (py4cl2-cffi:defpyfun "bar")
      (py4cl2-cffi:defpyfun "nilAndT"))
-  (assert-true (foo :a 4 :b 3))
+  (assert-true (foo :A 4 :b 3))
   (assert-equal '() (alexandria:hash-table-alist (bar)))
   (assert-equal '() (alexandria:hash-table-alist (bar :a 3)))
   (assert-equal '(("c" . 3)) (alexandria:hash-table-alist (bar :c 3)))
