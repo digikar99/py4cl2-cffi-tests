@@ -648,8 +648,9 @@ class testclass:
            (with-standard-io-syntax
              (uiop:with-temporary-file (:stream s :pathname p)
                (write
-                `(defpymodule "numpy.linalg" nil :lisp-package "LA" :silent t
-                              :reload t :cache ,cache)
+                `(defpymodule "numpy.linalg" t :lisp-package "LA" :silent t
+                              :reload t :cache ,cache
+                              :continue-ignoring-errors nil)
                 :stream s)
                (force-output s)
                (let ((compiled-file-name (compile-file p :verbose nil)))
@@ -676,8 +677,8 @@ class testclass:
            (with-standard-io-syntax
              (uiop:with-temporary-file (:stream s :pathname p)
                (write
-                `(defpymodule "numpy.linalg" nil :lisp-package "LA" :silent t
-                              :reload nil)
+                `(defpymodule "numpy.linalg" t :lisp-package "LA" :silent t
+                              :reload nil :continue-ignoring-errors nil)
                 :stream s)
                (force-output s)
                (let ((compiled-file-name (compile-file p :verbose nil)))
