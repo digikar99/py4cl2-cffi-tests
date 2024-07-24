@@ -563,18 +563,25 @@ temp = Foo()")
   (assert-equalp 31
       (py4cl2-cffi:chain ("TestClass") ("doThing" :value 31))))
 
-(defclass test-class () ((value :initarg :value)))
+(defclass test-class ()
+  ((value :initarg :value)
+   (thing :initarg :thing)))
+
 (defmethod python-getattr ((object test-class) slot-name)
   (cond
     ((string= slot-name "value") ; data member
       (slot-value object 'value))
-    ((string= slot-name "func")  ; method, return a function
-      (lambda (arg) (* 2 arg)))
+    ((string= slot-name "thing") ; another data member
+      (slot-value object 'thing))
+    ((string= slot-name "func")         ; method, return a function
+     (lambda (arg) (* 2 arg)))
+    ((string= slot-name "pyerror")  ; raise an error
+      (raw-pyexec "raise Exception(\"raised from PYTHON-GETATTR\")"))
     (t (call-next-method)))) ; Otherwise go to next method
 (deftest chain-nested (callpython-chain) nil
-  (assert-equal 42
-      (let ((instance (make-instance 'test-class :value 21)))
-        (chain* `((@ ,instance func) (@ ,instance value))))))
+  (let ((instance (make-instance 'test-class :value 21)))
+    (assert-equal 42 (chain* `((@ ,instance func) (@ ,instance value))))
+    (assert-condition pyerror (pyexec instance ".pyerror"))))
 
 (deftest setf-chain (callpython-chain) nil
   ;; Define an empty class which can be modified
@@ -907,21 +914,6 @@ a.value = 42")
     (assert-equalp 2
                    (test-struct-y result))))
 
-(defclass test-class ()
-  ((value :initarg :value)
-   (thing :initarg :thing)))
-
-;; Define a method to handle slot access from python
-(defmethod py4cl2-cffi:python-getattr ((object test-class) slot-name)
-  (cond
-    ((string= slot-name "value")
-     (slot-value object 'value))
-    ((string= slot-name "thing")
-     (slot-value object 'thing))
-    ((string= slot-name "func")
-     (lambda (arg) (* 2 arg)))
-    (t (call-next-method))))
-
 (deftest lisp-class-slots (objects) nil
   (let ((object (make-instance 'test-class :thing 23 :value 42)))
     ;; Slot access
@@ -966,6 +958,8 @@ a.value = 42")
      (setf (slot-value object 'value) set-to-value))
     ((string= slot-name "thing")
      (setf (slot-value object 'thing) set-to-value))
+    ((string= slot-name "pyerror")
+     (raw-pyexec "raise Exception(\"PYTHON-SETATTR raised a python error!\")"))
     (t (call-next-method))))
 
 (deftest lisp-class-set-slots (objects) nil
@@ -977,7 +971,11 @@ a.value = 42")
     ;; Set again
     (setf (py4cl2-cffi:chain* object 'thing) 72)
     (assert-equalp 72 (slot-value object 'thing))
-    (assert-equalp 72 (py4cl2-cffi:chain* object 'thing))))
+    (assert-equalp 72 (py4cl2-cffi:chain* object 'thing))
+
+    ;; Check for error
+    (assert-condition py4cl2-cffi:pyerror
+      (py4cl2-cffi:pyexec object ".pyerror = 42"))))
 
 ;; ========================= NUMPY-UFUNC =======================================
 
