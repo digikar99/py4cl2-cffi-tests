@@ -592,7 +592,31 @@ class testclass:
   (let ((obj (py4cl2-cffi:chain (testclass))))
     (setf (py4cl2-cffi:chain* obj 'data-attrib) 21)
     (assert-equalp 21
-        (py4cl2-cffi:chain* obj 'data-attrib))))
+        (py4cl2-cffi:chain* obj 'data-attrib))
+    (assert-equalp 21
+        (pyslot-value obj "data_attrib")))
+
+  (assert-equalp #(4 2 3)
+      (with-remote-objects*
+        (let ((a (pycall "list" '(1 2 3))))
+          (setf (py4cl2-cffi:chain* `(aref ,a 0)) 4)
+          a)))
+
+  (assert-equalp #(4 2 3)
+      (with-remote-objects*
+        (let ((a (pycall "list" '(1 2 3))))
+          (setf (py4cl2-cffi:chain* a '(aref 0)) 4)
+          a)))
+
+  (assert-equalp (make-array 3
+                             :initial-contents
+                             (list (alexandria:plist-hash-table '("a" 3) :test #'equal)
+                                   5
+                                   6))
+      (with-remote-objects*
+        (let ((a (raw-pyeval "[{}, 5, 6]")))
+          (setf (py4cl2-cffi:chain* a '(aref 0) '(aref "a")) 3)
+          a))))
 
 ;; ========================= CALLPYTHON-REMOTE =================================
 
