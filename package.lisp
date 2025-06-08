@@ -1,9 +1,11 @@
 (in-package :cl-user)
 
-(py4cl2-cffi:defpymodule "math" nil :silent t :continue-ignoring-errors nil)
-(py4cl2-cffi:defpymodule "numpy" nil :lisp-package "NP" :silent t
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (py4cl2-cffi:pystart :verbose nil))
+(py4cl2-cffi:defpymodule "math" nil :continue-ignoring-errors nil)
+(py4cl2-cffi:defpymodule "numpy" nil :lisp-package "NP"
                           :continue-ignoring-errors nil)
-(py4cl2-cffi:defpymodule "numpy.random" t :silent t
+(py4cl2-cffi:defpymodule "numpy.random" t
                          :continue-ignoring-errors nil)
 
 ;;; Do not test on ECL on CI just to save some travis time

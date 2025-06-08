@@ -15,18 +15,19 @@
 (defsuite element-type (py4cl))
 (defsuite array-data (py4cl))
 
-(py4cl2-cffi:pystart)
+(py4cl2-cffi:pystart :verbose nil)
 (defvar *pyversion* (py4cl2-cffi:pyversion-info))
 ;; so that calling this does not mess up other tests: autostarts in particular
 (py4cl2-cffi:pystop)
 
 (defmacro deftest (name declarations required-py4cl2-features &body body)
   `(clunit:deftest ,name ,declarations
-     (py4cl2-cffi:with-pygc
-       (if (subsetp ',required-py4cl2-features py4cl2-cffi:*internal-features*)
-           (progn
-             ,@body)
-           (clunit::skip-test-case)))))
+     (let ((py4cl2-cffi/config:*pystart-verbosity* nil))
+       (py4cl2-cffi:with-pygc
+         (if (subsetp ',required-py4cl2-features py4cl2-cffi:*internal-features*)
+             (progn
+               ,@body)
+             (clunit::skip-test-case))))))
 
 (defmacro skip-on (skip-features assert-form)
   `(if (intersection ',skip-features *features*)
@@ -46,7 +47,9 @@
   (py4cl2-cffi:raw-pyexec "def foo(): return None")
   (assert-true (py4cl2-cffi:pyeval "foo"))
   (py4cl2-cffi:pystop)
-  (assert-condition py4cl2-cffi:pyerror (py4cl2-cffi:pyeval "foo")))
+  (if (eq +python-call-mode+ :dedicated-thread)
+      (clunit::skip-test-case)
+      (assert-condition py4cl2-cffi:pyerror (py4cl2-cffi:pyeval "foo"))))
 
 ;; ======================== CALLPYTHON-RAW =====================================
 
@@ -666,7 +669,7 @@ class testclass:
              (assert-equalp #(5 7 9) (np:add '(1 2 3) '(4 5 6))))))
 
 (deftest numpy-random-import (import-export) nil
-  (defpymodule "numpy.random" t :silent t)
+  (defpymodule "numpy.random" t :continue-ignoring-errors nil)
   ;; The following tests two bugfixes
   ;; 1. defpysubmodules was previously importing only packages.
   ;; 2. package-import-string was not good for submodules like matplotlib.pyplot
