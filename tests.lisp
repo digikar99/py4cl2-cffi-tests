@@ -228,6 +228,20 @@ bar()")
   (assert-equalp #2A((1 2) (3 4))
                  (py4cl2-cffi:pyeval #2A((1 2) (3 4))))
 
+  (assert-equalp #2A((1 2) (3 4))
+                 (py4cl2-cffi:pyeval (make-array '(2 2) :displaced-index-offset 2
+                                                 :displaced-to #(-1 0 1 2 3 4))))
+
+  (assert-equalp #2A((1 2) (3 4))
+                 (py4cl2-cffi:pyeval (make-array '(2 2) :displaced-index-offset 2
+                                                        :displaced-to (coerce '(-1 0 1 2 3 4) '(vector fixnum))
+                                                        :element-type 'fixnum)))
+
+  (assert-equalp #2A((1 2) (3 4))
+                 (py4cl2-cffi:pyeval (make-array '(2 2) :element-type 'fixnum
+                                                        :adjustable t
+                                                        :initial-contents '((1 2) (3 4)))))
+
   (assert-equalp #2A((2 4) (6 8))
                  (py4cl2-cffi:pyeval #2A((1 2) (3 4)) "*" 2))
 
